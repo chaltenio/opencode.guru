@@ -11,6 +11,8 @@
 import { drizzle } from "drizzle-orm/postgres-js";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import postgres from "postgres";
+import path from "node:path";
+import fs from "node:fs";
 
 async function main() {
   const url =
@@ -33,7 +35,23 @@ async function main() {
         : "POSTGRES_URL";
   console.log(`[migrate] Using ${label}`);
 
-  const migrationsFolder = new URL("../drizzle", import.meta.url).pathname;
+  // Resolve the drizzle migrations folder. Try several candidates so this
+  // works both locally (cwd is project root) and on Vercel (tsx may resolve
+  // import.meta.url differently).
+  const candidates = [
+    path.resolve(process.cwd(), "drizzle"),
+    path.resolve(process.cwd(), "..", "drizzle"),
+    path.resolve(process.cwd(), "..", "..", "drizzle"),
+  ];
+  const migrationsFolder = candidates.find((p) => fs.existsSync(p));
+  if (!migrationsFolder) {
+    console.error(
+      `[migrate] Could not find a 'drizzle' folder. Tried:\n  ${candidates.join("\n  ")}`,
+    );
+    process.exit(1);
+  }
+  console.log(`[migrate] Migrations folder: ${migrationsFolder}`);
+
   const sql = postgres(url, { max: 1, prepare: false });
   const db = drizzle(sql);
 
