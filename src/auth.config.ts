@@ -10,6 +10,10 @@ import Google from "next-auth/providers/google";
  * extends this config with DB callbacks.
  */
 export default {
+  // Explicitly set so Auth.js gets our validated secret (throws a clear
+  // error message in prod if AUTH_SECRET is missing, instead of the generic
+  // "MissingSecret" 500).
+  secret: process.env.AUTH_SECRET,
   providers: [
     GitHub({
       clientId: process.env.AUTH_GITHUB_ID,
@@ -27,6 +31,7 @@ export default {
   trustHost: true,
   pages: {
     signIn: "/login",
+    error: "/login", // redirect OAuth errors back to /login (which can show a message)
   },
   callbacks: {
     authorized({ auth, request }) {

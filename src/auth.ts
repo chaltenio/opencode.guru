@@ -4,6 +4,7 @@ import { users, oauthAccounts } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import type { UserRole } from "@/db/schema";
 import authConfig from "./auth.config";
+import "./lib/env"; // imports trigger the warnings on module load
 
 declare module "next-auth" {
   interface Session {
