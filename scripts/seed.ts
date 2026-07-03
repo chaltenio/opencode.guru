@@ -1,8 +1,12 @@
 /**
- * Seed script — populates the DB with a SUPER_ADMIN, sample tags, and a few
- * approved videos. Run with: `npm run db:seed`
+ * Seed script — idempotent. Populates an admin user, tags, and a few demo
+ * videos. Safe to re-run; existing rows are detected and skipped.
  *
- * Requires POSTGRES_URL in environment.
+ * Auto-runs on every Vercel build (see vercel.json) but only inserts data if
+ * the DB is empty.
+ *
+ * Environment: POSTGRES_URL (or POSTGRES_URL_NON_POOLING for migrations-style
+ * connections) must be set.
  */
 import { db } from "../src/db";
 import {
@@ -20,9 +24,24 @@ import slugify from "slugify";
 const ADMIN_EMAIL = process.env.SEED_ADMIN_EMAIL ?? "admin@opencode.guru";
 
 async function main() {
-  console.log("Seeding…");
+  if (process.env.SEED_ENABLED === "false") {
+    console.log("[seed] SEED_ENABLED=false — skipping.");
+    process.exit(0);
+  }
+  console.log("[seed] Checking current state…");
 
-  // 1) Admin user (no-op if exists)
+  const existingVideos = await db.select().from(videos).limit(1);
+  if (existingVideos.length > 0) {
+    console.log(
+      `[seed] DB already has ${existingVideos.length > 0 ? "content" : "data"} — skipping seed.`,
+    );
+    console.log("[seed] To force re-seed, manually DELETE FROM videos CASCADE first.");
+    process.exit(0);
+  }
+
+  console.log("[seed] DB is empty — seeding…");
+
+  // 1) Admin user
   const existingAdmin = await db
     .select()
     .from(users)
@@ -31,7 +50,7 @@ async function main() {
   let adminId: string;
   if (existingAdmin[0]) {
     adminId = existingAdmin[0].id;
-    console.log(`✓ Admin already exists: ${ADMIN_EMAIL}`);
+    console.log(`[seed] ✓ Admin already exists: ${ADMIN_EMAIL}`);
   } else {
     const inserted = await db
       .insert(users)
@@ -43,9 +62,20 @@ async function main() {
         status: "ACTIVE",
         emailVerifiedAt: new Date(),
       })
+      .onConflictDoNothing()
       .returning();
-    adminId = inserted[0].id;
-    console.log(`✓ Created admin ${ADMIN_EMAIL}`);
+    if (inserted[0]) {
+      adminId = inserted[0].id;
+      console.log(`[seed] ✓ Created admin ${ADMIN_EMAIL}`);
+    } else {
+      // Lost the race — re-read
+      const r = await db
+        .select()
+        .from(users)
+        .where(eq(users.email, ADMIN_EMAIL))
+        .limit(1);
+      adminId = r[0].id;
+    }
   }
 
   // 2) Tags
@@ -73,9 +103,15 @@ async function main() {
     )
     .onConflictDoNothing()
     .returning();
-  console.log(`✓ Tags (${tagRows.length} new, ${tagNames.length} total)`);
+  console.log(`[seed] ✓ Tags (${tagRows.length} new, ${tagNames.length} total)`);
 
-  // 3) Sample series
+  // If tags were all already present, fetch them so we can attach to videos
+  let allTags = tagRows;
+  if (tagRows.length === 0) {
+    allTags = await db.select().from(tags);
+  }
+
+  // 3) Series
   const seriesSlug = "opencode-essentials";
   const existingSeries = await db
     .select()
@@ -92,12 +128,13 @@ async function main() {
         description: "A short course covering the core concepts.",
         createdById: adminId,
       })
+      .onConflictDoNothing()
       .returning();
-    seriesId = s[0].id;
-    console.log(`✓ Series: opencode Essentials`);
+    seriesId = s[0]?.id ?? null;
+    if (seriesId) console.log(`[seed] ✓ Series: opencode Essentials`);
   }
 
-  // 4) Sample videos (placeholder URLs — real ones go through moderation)
+  // 4) Sample videos
   const samples = [
     {
       title: "opencode in 5 minutes — first impressions",
@@ -161,40 +198,45 @@ async function main() {
       })
       .returning();
 
-    // Attach first 2 tags as a sample
-    const tIds = tagRows.slice(0, 2).map((t) => t.id);
+    const tIds = allTags.slice(0, 2).map((t) => t.id);
     if (tIds.length > 0) {
       await db
         .insert(videoTags)
-        .values(tIds.map((tagId) => ({ videoId: inserted[0].id, tagId })));
+        .values(tIds.map((tagId) => ({ videoId: inserted[0].id, tagId })))
+        .onConflictDoNothing();
     }
-    console.log(`✓ Video: ${s.title}`);
+    console.log(`[seed] ✓ Video: ${s.title}`);
   }
 
-  // 5) A couple of demo comments
+  // 5) Demo comments
   const allVideos = await db.select().from(videos).limit(3);
   for (const v of allVideos) {
+    const existing = await db
+      .select()
+      .from(comments)
+      .where(eq(comments.videoId, v.id))
+      .limit(1);
+    if (existing.length > 0) continue;
     await db.insert(comments).values({
       videoId: v.id,
       userId: adminId,
       body: "Great breakdown — thanks for putting this together!",
     });
-    await db.insert(videoLikes).values({
-      videoId: v.id,
-      userId: adminId,
-      value: "LIKE",
-    });
+    await db
+      .insert(videoLikes)
+      .values({
+        videoId: v.id,
+        userId: adminId,
+        value: "LIKE",
+      })
+      .onConflictDoNothing();
   }
 
-  console.log("\n🎉 Seed complete.");
-  console.log(`\nNext steps:`);
-  console.log(`1. Sign in with GitHub using the email: ${ADMIN_EMAIL}`);
-  console.log(`2. Manually promote yourself in DB to SUPER_ADMIN if not already:`);
-  console.log(`   UPDATE users SET role='SUPER_ADMIN' WHERE email='${ADMIN_EMAIL}';`);
+  console.log("\n[seed] 🎉 Seed complete.");
   process.exit(0);
 }
 
 main().catch((e) => {
-  console.error(e);
+  console.error("[seed] ✗ Error:", e);
   process.exit(1);
 });
