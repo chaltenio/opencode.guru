@@ -38,4 +38,5 @@ yarn-error.log*
 next-env.d.ts
 
 # drizzle
-drizzle/meta
+# (do NOT ignore drizzle/meta — the migrator needs _journal.json + snapshots
+# at runtime in production)
