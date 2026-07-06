@@ -32,3 +32,10 @@ export function formatNumber(n: number | null | undefined): string {
   if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
   return String(n);
 }
+
+export function formatDateTime(date: Date | string | null | undefined): string {
+  if (!date) return "—";
+  const d = typeof date === "string" ? new Date(date) : date;
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toISOString().replace("T", " ").slice(0, 16) + " UTC";
+}

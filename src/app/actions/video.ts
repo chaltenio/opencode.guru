@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { z } from "zod";
 import { auth } from "@/auth";
 import { db } from "@/db";
 import {
@@ -412,6 +413,87 @@ export async function updateVideoOrderAction(input: unknown) {
 
   revalidatePath("/");
   revalidatePath("/admin");
+  return { ok: true } as const;
+}
+
+// ---------------------------------------------------------------------------
+// Admin: toggle featured / sponsored independently of order
+// ---------------------------------------------------------------------------
+const videoFlagsSchema = z.object({
+  videoId: z.string().uuid(),
+  isFeatured: z.boolean().optional(),
+  isSponsored: z.boolean().optional(),
+});
+
+export async function updateVideoFlagsAction(input: unknown) {
+  const session = await auth();
+  if (!session?.user?.id || session.user.role !== "SUPER_ADMIN") {
+    return { ok: false, error: "Forbidden — super admin only" } as const;
+  }
+  const parsed = videoFlagsSchema.safeParse(input);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: parsed.error.issues[0]?.message ?? "Invalid input",
+    } as const;
+  }
+
+  const existing = await db
+    .select({
+      id: videos.id,
+      slug: videos.slug,
+      isFeatured: videos.isFeatured,
+      isSponsored: videos.isSponsored,
+    })
+    .from(videos)
+    .where(eq(videos.id, parsed.data.videoId))
+    .limit(1);
+  if (!existing[0]) return { ok: false, error: "Video not found" } as const;
+
+  const patch: Record<string, unknown> = { updatedAt: new Date() };
+  const changes: Record<string, { from: unknown; to: unknown }> = {};
+  if (
+    parsed.data.isFeatured !== undefined &&
+    parsed.data.isFeatured !== existing[0].isFeatured
+  ) {
+    patch.isFeatured = parsed.data.isFeatured;
+    changes.isFeatured = {
+      from: existing[0].isFeatured,
+      to: parsed.data.isFeatured,
+    };
+  }
+  if (
+    parsed.data.isSponsored !== undefined &&
+    parsed.data.isSponsored !== existing[0].isSponsored
+  ) {
+    patch.isSponsored = parsed.data.isSponsored;
+    changes.isSponsored = {
+      from: existing[0].isSponsored,
+      to: parsed.data.isSponsored,
+    };
+  }
+
+  if (Object.keys(changes).length === 0) {
+    return { ok: true, unchanged: true } as const;
+  }
+
+  await db
+    .update(videos)
+    .set(patch)
+    .where(eq(videos.id, parsed.data.videoId));
+
+  await writeAudit({
+    actorId: session.user.id,
+    action: "video.flags",
+    entityType: "video",
+    entityId: parsed.data.videoId,
+    diff: changes,
+  });
+
+  revalidatePath("/");
+  revalidatePath("/admin");
+  revalidatePath(`/admin/videos/${parsed.data.videoId}`);
+  revalidatePath(`/v/${existing[0].slug}`);
   return { ok: true } as const;
 }
 

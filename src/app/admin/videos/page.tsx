@@ -2,8 +2,10 @@ import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import { db } from "@/db";
 import { videos, users } from "@/db/schema";
-import { desc, eq, or, sql } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
+import { desc, eq, sql } from "drizzle-orm";
 import { ReviewQuickActions } from "@/components/admin/review-quick-actions";
+import { timeAgo } from "@/lib/utils";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
@@ -29,6 +31,9 @@ export default async function AdminVideosPage({
       ? searchParams.status
       : undefined;
 
+  // Alias the join for the reviewer (a *second* join to `users`).
+  const reviewer = alias(users, "reviewer");
+
   const rows = await db
     .select({
       id: videos.id,
@@ -43,15 +48,22 @@ export default async function AdminVideosPage({
       isSponsored: videos.isSponsored,
       viewCount: videos.viewCount,
       likeCount: videos.likeCount,
+      reviewedAt: videos.reviewedAt,
       createdAt: videos.createdAt,
       submitter: {
         id: users.id,
         username: users.username,
         displayName: users.displayName,
       },
+      reviewer: {
+        id: reviewer.id,
+        username: reviewer.username,
+        displayName: reviewer.displayName,
+      },
     })
     .from(videos)
     .innerJoin(users, eq(users.id, videos.submittedById))
+    .leftJoin(reviewer, eq(reviewer.id, videos.reviewedById))
     .where(status ? eq(videos.status, status) : sql`true`)
     .orderBy(desc(videos.createdAt))
     .limit(200);
@@ -73,7 +85,8 @@ export default async function AdminVideosPage({
             <tr>
               <th className="px-3 py-2">Title</th>
               <th className="px-3 py-2">Status</th>
-              <th className="px-3 py-2">Order</th>
+              <th className="px-3 py-2">Order / Flags</th>
+              <th className="px-3 py-2">Reviewer</th>
               <th className="px-3 py-2">Views</th>
               <th className="px-3 py-2">Likes</th>
               <th className="px-3 py-2">Submitter</th>
@@ -82,7 +95,7 @@ export default async function AdminVideosPage({
           </thead>
           <tbody>
             {rows.map((r) => (
-              <tr key={r.id} className="border-t border-zinc-800">
+              <tr key={r.id} className="border-t border-zinc-800 align-top">
                 <td className="px-3 py-2 text-white">
                   <Link
                     href={`/admin/videos/${r.id}`}
@@ -90,19 +103,9 @@ export default async function AdminVideosPage({
                   >
                     {r.title}
                   </Link>
-                  {r.isFeatured && (
-                    <span className="ml-2 text-[10px] bg-amber-500/15 text-amber-300 px-1.5 rounded">
-                      FEATURED
-                    </span>
-                  )}
-                  {r.isSponsored && (
-                    <span className="ml-2 text-[10px] bg-brand/15 text-brand px-1.5 rounded">
-                      SPONSORED
-                    </span>
-                  )}
                 </td>
                 <td className="px-3 py-2 text-zinc-300">{r.status}</td>
-                <td className="px-3 py-2 text-zinc-300">
+                <td className="px-3 py-2">
                   <ReviewQuickActions
                     videoId={r.id}
                     currentOrder={r.order}
@@ -110,6 +113,20 @@ export default async function AdminVideosPage({
                     isFeatured={r.isFeatured}
                     isSuperAdmin={session.user.role === "SUPER_ADMIN"}
                   />
+                </td>
+                <td className="px-3 py-2 text-xs text-zinc-300">
+                  {r.reviewer?.username ? (
+                    <span>
+                      <span className="text-white">
+                        @{r.reviewer.username}
+                      </span>{" "}
+                      <span className="text-zinc-500">
+                        ({timeAgo(r.reviewedAt)})
+                      </span>
+                    </span>
+                  ) : (
+                    <span className="text-zinc-500">—</span>
+                  )}
                 </td>
                 <td className="px-3 py-2 text-zinc-300">{r.viewCount}</td>
                 <td className="px-3 py-2 text-zinc-300">{r.likeCount}</td>
