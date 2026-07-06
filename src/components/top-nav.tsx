@@ -42,6 +42,16 @@ export async function TopNav({ user }: TopNavProps) {
           )}
         </nav>
 
+        <div className="ml-6 hidden md:flex items-center gap-2 text-sm">
+          <Link
+            href="/submit"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-brand/10 border border-brand/40 text-brand hover:bg-brand/20 hover:text-brand-hover"
+          >
+            <span aria-hidden>+</span>
+            Submit a video
+          </Link>
+        </div>
+
         <div className="ml-auto flex items-center gap-3">
           {user ? (
             <>

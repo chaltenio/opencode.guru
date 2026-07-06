@@ -5,6 +5,7 @@ import { videos, users, auditLog } from "@/db/schema";
 import { and, desc, eq, or } from "drizzle-orm";
 import { ReviewForm } from "@/components/admin/review-form";
 import { AdminFlagsPanel } from "@/components/admin/admin-flags-panel";
+import { AdminDeletePanel } from "@/components/admin/admin-delete-panel";
 import { parseVideoUrl } from "@/lib/video";
 import { timeAgo, formatDateTime } from "@/lib/utils";
 
@@ -66,6 +67,8 @@ export default async function ReviewVideoPage({
           eq(auditLog.action, "video.reject"),
           eq(auditLog.action, "video.reorder"),
           eq(auditLog.action, "video.flags"),
+          eq(auditLog.action, "video.soft_delete"),
+          eq(auditLog.action, "video.restore"),
         ),
       ),
     )
@@ -163,6 +166,20 @@ export default async function ReviewVideoPage({
           isSponsored={row.isSponsored}
           isFeatured={row.isFeatured}
           order={row.order}
+        />
+      )}
+
+      {/* Super-admin-only soft delete / restore */}
+      {session.user.role === "SUPER_ADMIN" && (
+        <AdminDeletePanel
+          videoId={row.id}
+          deletedAt={
+            row.deletedAt
+              ? typeof row.deletedAt === "string"
+                ? row.deletedAt
+                : row.deletedAt.toISOString()
+              : null
+          }
         />
       )}
 

@@ -5,6 +5,15 @@ import { tags } from "@/db/schema";
 import { submitVideoAction } from "@/app/actions/video";
 import slugify from "slugify";
 import { desc, eq } from "drizzle-orm";
+import { SUPPORTED_LANGUAGES } from "@/lib/validation";
+
+const LANGUAGE_LABEL: Record<string, string> = {
+  EN: "English",
+  ES: "Spanish (Español)",
+  PT: "Portuguese (Português)",
+  HI: "Hindi (हिन्दी)",
+  ZH: "Mandarin Chinese (中文)",
+};
 
 export const dynamic = "force-dynamic";
 
@@ -27,7 +36,7 @@ export default async function SubmitPage() {
       description: formData.get("description") ?? "",
       externalUrl: formData.get("externalUrl"),
       level: formData.get("level"),
-      language: formData.get("language") ?? "en",
+      language: formData.get("language") ?? "EN",
       tagIds,
     });
     if (result.ok) {
@@ -74,6 +83,26 @@ export default async function SubmitPage() {
             <option value="INTERMEDIATE">Intermediate</option>
             <option value="ADVANCED">Advanced</option>
           </select>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-zinc-200 mb-1">
+            Spoken language
+          </label>
+          <select
+            name="language"
+            defaultValue="EN"
+            className="w-full px-3 py-2 rounded-md bg-bg-elev border border-zinc-800 text-sm"
+          >
+            {SUPPORTED_LANGUAGES.map((code) => (
+              <option key={code} value={code}>
+                {LANGUAGE_LABEL[code]}
+              </option>
+            ))}
+          </select>
+          <p className="mt-1 text-[11px] text-zinc-500">
+            Default is English. Used for filtering in the future.
+          </p>
         </div>
 
         <div>

@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { db } from "@/db";
 import { videos, users } from "@/db/schema";
 import { alias } from "drizzle-orm/pg-core";
-import { desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import { ReviewQuickActions } from "@/components/admin/review-quick-actions";
 import { timeAgo } from "@/lib/utils";
 import Link from "next/link";
@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
 export default async function AdminVideosPage({
   searchParams,
 }: {
-  searchParams: { status?: string };
+  searchParams: { status?: string; deleted?: string };
 }) {
   const session = await auth();
   if (!session?.user) redirect("/login");
@@ -30,6 +30,13 @@ export default async function AdminVideosPage({
     searchParams.status === "REVIEW"
       ? searchParams.status
       : undefined;
+
+  const showDeleted = searchParams.deleted === "1";
+
+  // Build WHERE clause
+  const whereParts = [] as ReturnType<typeof eq>[];
+  if (status) whereParts.push(eq(videos.status, status));
+  if (!showDeleted) whereParts.push(isNull(videos.deletedAt));
 
   // Alias the join for the reviewer (a *second* join to `users`).
   const reviewer = alias(users, "reviewer");
@@ -50,6 +57,7 @@ export default async function AdminVideosPage({
       likeCount: videos.likeCount,
       reviewedAt: videos.reviewedAt,
       createdAt: videos.createdAt,
+      deletedAt: videos.deletedAt,
       submitter: {
         id: users.id,
         username: users.username,
@@ -64,19 +72,59 @@ export default async function AdminVideosPage({
     .from(videos)
     .innerJoin(users, eq(users.id, videos.submittedById))
     .leftJoin(reviewer, eq(reviewer.id, videos.reviewedById))
-    .where(status ? eq(videos.status, status) : sql`true`)
+    .where(whereParts.length > 0 ? and(...whereParts) : sql`true`)
     .orderBy(desc(videos.createdAt))
     .limit(200);
 
+  const baseQS = (() => {
+    const p = new URLSearchParams();
+    if (status) p.set("status", status);
+    if (showDeleted) p.set("deleted", "1");
+    return p.toString();
+  })();
+
   return (
     <div className="mx-auto max-w-7xl px-6 py-8">
-      <header className="flex items-baseline justify-between mb-6">
+      <header className="flex items-baseline justify-between mb-6 flex-wrap gap-3">
         <h1 className="text-2xl font-bold text-white">All videos</h1>
-        <div className="flex gap-2 text-xs">
-          <Link href="/admin/videos" className="px-3 py-1 rounded bg-zinc-800 hover:bg-zinc-700">All</Link>
-          <Link href="/admin/videos?status=REVIEW" className="px-3 py-1 rounded bg-zinc-800 hover:bg-zinc-700">Review</Link>
-          <Link href="/admin/videos?status=APPROVED" className="px-3 py-1 rounded bg-zinc-800 hover:bg-zinc-700">Approved</Link>
-          <Link href="/admin/videos?status=REJECTED" className="px-3 py-1 rounded bg-zinc-800 hover:bg-zinc-700">Rejected</Link>
+        <div className="flex flex-wrap gap-2 text-xs">
+          <Link
+            href={`/admin/videos${status ? `?status=${status}` : ""}`}
+            className={`px-3 py-1 rounded ${!showDeleted ? "bg-zinc-700 text-white" : "bg-zinc-800 hover:bg-zinc-700"}`}
+          >
+            Active
+          </Link>
+          <Link
+            href={`/admin/videos?deleted=1${status ? `&status=${status}` : ""}`}
+            className={`px-3 py-1 rounded ${showDeleted ? "bg-zinc-700 text-white" : "bg-zinc-800 hover:bg-zinc-700"}`}
+          >
+            Deleted
+          </Link>
+          <span className="mx-2 text-zinc-700">|</span>
+          <Link
+            href="/admin/videos"
+            className={`px-3 py-1 rounded bg-zinc-800 hover:bg-zinc-700 ${!status && !showDeleted ? "ring-1 ring-brand" : ""}`}
+          >
+            All
+          </Link>
+          <Link
+            href={`/admin/videos?status=REVIEW${showDeleted ? "&deleted=1" : ""}`}
+            className="px-3 py-1 rounded bg-zinc-800 hover:bg-zinc-700"
+          >
+            Review
+          </Link>
+          <Link
+            href={`/admin/videos?status=APPROVED${showDeleted ? "&deleted=1" : ""}`}
+            className="px-3 py-1 rounded bg-zinc-800 hover:bg-zinc-700"
+          >
+            Approved
+          </Link>
+          <Link
+            href={`/admin/videos?status=REJECTED${showDeleted ? "&deleted=1" : ""}`}
+            className="px-3 py-1 rounded bg-zinc-800 hover:bg-zinc-700"
+          >
+            Rejected
+          </Link>
         </div>
       </header>
       <div className="overflow-x-auto rounded-lg border border-zinc-800">
@@ -95,7 +143,10 @@ export default async function AdminVideosPage({
           </thead>
           <tbody>
             {rows.map((r) => (
-              <tr key={r.id} className="border-t border-zinc-800 align-top">
+              <tr
+                key={r.id}
+                className={`border-t border-zinc-800 align-top ${r.deletedAt ? "opacity-60" : ""}`}
+              >
                 <td className="px-3 py-2 text-white">
                   <Link
                     href={`/admin/videos/${r.id}`}
@@ -103,6 +154,11 @@ export default async function AdminVideosPage({
                   >
                     {r.title}
                   </Link>
+                  {r.deletedAt && (
+                    <span className="ml-2 text-[10px] bg-red-900/40 text-red-300 px-1.5 rounded">
+                      DELETED
+                    </span>
+                  )}
                 </td>
                 <td className="px-3 py-2 text-zinc-300">{r.status}</td>
                 <td className="px-3 py-2">

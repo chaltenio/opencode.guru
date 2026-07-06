@@ -56,6 +56,18 @@ export const videoUserLabelEnum = pgEnum("video_user_label", [
   "TO_REWATCH",
 ]);
 
+/**
+ * Five most common spoken languages for video tutorials. English is the
+ * default; the site admin can extend this enum later if needed.
+ */
+export const videoLanguageEnum = pgEnum("video_language", [
+  "EN",
+  "ES",
+  "PT",
+  "HI",
+  "ZH",
+]);
+
 export const commentStatusEnum = pgEnum("comment_status", [
   "VISIBLE",
   "HIDDEN",
@@ -195,7 +207,7 @@ export const videos = pgTable(
     }),
     reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
     rejectionReason: text("rejection_reason"),
-    language: varchar("language", { length: 8 }).notNull().default("en"),
+    language: videoLanguageEnum("language").notNull().default("EN"),
     seriesId: uuid("series_id").references(() => videoSeries.id, {
       onDelete: "set null",
     }),
@@ -210,10 +222,16 @@ export const videos = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
+    // Soft delete
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
+    deletedById: uuid("deleted_by_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
   },
   (t) => ({
     slugUq: uniqueIndex("videos_slug_uq").on(t.slug),
     publishedAtIdx: index("videos_published_at_idx").on(t.publishedAt),
+    deletedAtIdx: index("videos_deleted_at_idx").on(t.deletedAt),
     statusIdx: index("videos_status_idx").on(t.status),
     publishedIdx: index("videos_published_idx").on(t.published),
     orderIdx: index("videos_order_idx").on(t.order),
@@ -636,6 +654,7 @@ export type WatchHistoryRow = typeof watchHistory.$inferSelect;
 export type VideoLabel = typeof videoLabels.$inferSelect;
 export type NewVideoLabel = typeof videoLabels.$inferInsert;
 export type VideoUserLabel = (typeof videoUserLabelEnum.enumValues)[number];
+export type VideoLanguage = (typeof videoLanguageEnum.enumValues)[number];
 export type Notification = typeof notifications.$inferSelect;
 export type Report = typeof reports.$inferSelect;
 export type AuditEntry = typeof auditLog.$inferSelect;

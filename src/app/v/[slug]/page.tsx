@@ -42,7 +42,7 @@ export async function generateMetadata({ params }: PageProps) {
 
 export default async function VideoPage({ params }: PageProps) {
   const v = await getVideoBySlug(params.slug);
-  if (!v || v.status !== "APPROVED" || !v.published) notFound();
+  if (!v || v.status !== "APPROVED" || !v.published || v.deletedAt) notFound();
 
   const parsed = parseVideoUrl(v.externalUrl);
   if (!parsed) notFound();
@@ -166,7 +166,19 @@ export default async function VideoPage({ params }: PageProps) {
               </div>
               <div className="flex justify-between">
                 <dt className="text-zinc-500">Language</dt>
-                <dd className="text-zinc-200">{v.language}</dd>
+                <dd className="text-zinc-200">
+                  {v.language === "EN"
+                    ? "English"
+                    : v.language === "ES"
+                      ? "Spanish"
+                      : v.language === "PT"
+                        ? "Portuguese"
+                        : v.language === "HI"
+                          ? "Hindi"
+                          : v.language === "ZH"
+                            ? "Mandarin"
+                            : v.language}
+                </dd>
               </div>
               <div className="flex justify-between">
                 <dt className="text-zinc-500">Likes</dt>

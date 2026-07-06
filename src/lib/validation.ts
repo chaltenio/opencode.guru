@@ -27,6 +27,12 @@ export const tagNameSchema = z
   .max(60)
   .regex(/^[a-zA-Z0-9 .-]+$/, "Use letters, numbers, spaces, dashes, dots");
 
+/** Top-5 supported spoken languages for tutorials. English is the default. */
+export const SUPPORTED_LANGUAGES = ["EN", "ES", "PT", "HI", "ZH"] as const;
+export type SupportedLanguage = (typeof SUPPORTED_LANGUAGES)[number];
+
+export const languageSchema = z.enum(SUPPORTED_LANGUAGES);
+
 export const commentBodySchema = z
   .string()
   .trim()
@@ -39,12 +45,7 @@ export const submitVideoSchema = z.object({
   description: z.string().trim().max(20000).default(""),
   externalUrl: urlSchema,
   level: levelSchema,
-  language: z
-    .string()
-    .trim()
-    .min(2)
-    .max(8)
-    .default("en"),
+  language: languageSchema.default("EN"),
   tagIds: z.array(z.string().uuid()).max(20).default([]),
   seriesId: z.string().uuid().optional().nullable(),
 });
@@ -109,4 +110,9 @@ export const videoLabelSchema = z.object({
   videoId: z.string().uuid(),
   // "NONE" clears the label; otherwise set the new label.
   label: z.enum(["TO_WATCH", "WATCHED", "TO_REWATCH", "NONE"]),
+});
+
+export const deleteVideoSchema = z.object({
+  videoId: z.string().uuid(),
+  reason: z.string().trim().max(500).optional(),
 });

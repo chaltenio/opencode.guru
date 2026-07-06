@@ -20,7 +20,7 @@ import {
   type User,
   type VideoUserLabel,
 } from "@/db/schema";
-import { and, desc, eq, sql, inArray, or, ilike, lt } from "drizzle-orm";
+import { and, desc, eq, sql, inArray, or, ilike, isNull, lt } from "drizzle-orm";
 
 // ---------------------------------------------------------------------------
 // Users
@@ -133,10 +133,13 @@ export async function listPublishedVideos(opts: {
   tagSlug?: string;
   q?: string;
   featured?: boolean;
+  /** Internal: include soft-deleted videos. Never set from public callers. */
+  includeDeleted?: boolean;
 } = {}): Promise<VideoListItem[]> {
-  const { limit = 24, offset = 0, level, platform, tagSlug, q, featured } = opts;
+  const { limit = 24, offset = 0, level, platform, tagSlug, q, featured, includeDeleted } = opts;
 
   const whereParts = [eq(videos.status, "APPROVED"), eq(videos.published, true)];
+  if (!includeDeleted) whereParts.push(isNull(videos.deletedAt));
   if (level) whereParts.push(eq(videos.level, level));
   if (platform) whereParts.push(eq(videos.platform, platform));
   if (featured) whereParts.push(eq(videos.isFeatured, true));
@@ -232,9 +235,42 @@ export async function getVideoBySlug(slug: string) {
   return rows[0] ?? null;
 }
 
-export async function getVideoById(id: string) {
-  const rows = await db.select().from(videos).where(eq(videos.id, id)).limit(1);
+/**
+ * Admins can opt in to see soft-deleted videos by passing
+ * { includeDeleted: true }. Public callers should never pass it.
+ */
+export async function getVideoById(id: string, opts: { includeDeleted?: boolean } = {}) {
+  const whereParts = [eq(videos.id, id)];
+  if (!opts.includeDeleted) whereParts.push(isNull(videos.deletedAt));
+  const rows = await db
+    .select()
+    .from(videos)
+    .where(and(...whereParts))
+    .limit(1);
   return rows[0] ?? null;
+}
+
+/** Soft-delete: mark `deletedAt` (idempotent). */
+export async function softDeleteVideo(videoId: string, deletedById: string) {
+  return db
+    .update(videos)
+    .set({
+      deletedAt: new Date(),
+      deletedById,
+      published: false,
+      updatedAt: new Date(),
+    })
+    .where(eq(videos.id, videoId))
+    .returning();
+}
+
+/** Restore a soft-deleted video (clears `deletedAt`). */
+export async function restoreVideo(videoId: string) {
+  return db
+    .update(videos)
+    .set({ deletedAt: null, deletedById: null, updatedAt: new Date() })
+    .where(eq(videos.id, videoId))
+    .returning();
 }
 
 export async function getSubmitterForVideo(videoId: string) {

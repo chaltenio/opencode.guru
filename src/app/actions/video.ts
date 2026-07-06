@@ -26,6 +26,7 @@ import {
   submitVideoSchema,
   watchProgressSchema,
   videoLabelSchema,
+  deleteVideoSchema,
 } from "@/lib/validation";
 import { parseVideoUrl, slugFor, thumbnailFor } from "@/lib/video";
 import {
@@ -36,7 +37,9 @@ import {
   incrementVideoViews,
   isInWatchlist,
   removeFromWatchlist,
+  restoreVideo,
   setVideoLike,
+  softDeleteVideo,
   upsertWatchProgress,
   writeAudit,
 } from "@/db/queries";
@@ -691,5 +694,86 @@ export async function resolveTagSuggestionAction(input: {
   });
 
   revalidatePath("/admin/tags");
+  return { ok: true } as const;
+}
+
+// ---------------------------------------------------------------------------
+// Admin: soft-delete a video (SUPER_ADMIN)
+// ---------------------------------------------------------------------------
+export async function deleteVideoAction(input: unknown) {
+  const session = await auth();
+  if (!session?.user?.id) return { ok: false, error: "Sign in required" } as const;
+  if (session.user.role !== "SUPER_ADMIN") {
+    return { ok: false, error: "Forbidden — super admin only" } as const;
+  }
+  const parsed = deleteVideoSchema.safeParse(input);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: parsed.error.issues[0]?.message ?? "Invalid input",
+    } as const;
+  }
+
+  const existing = await db
+    .select({ id: videos.id, slug: videos.slug, deletedAt: videos.deletedAt })
+    .from(videos)
+    .where(eq(videos.id, parsed.data.videoId))
+    .limit(1);
+  if (!existing[0]) return { ok: false, error: "Video not found" } as const;
+  if (existing[0].deletedAt) {
+    return { ok: false, error: "Video is already deleted" } as const;
+  }
+
+  await softDeleteVideo(parsed.data.videoId, session.user.id);
+
+  await writeAudit({
+    actorId: session.user.id,
+    action: "video.soft_delete",
+    entityType: "video",
+    entityId: parsed.data.videoId,
+    diff: { reason: parsed.data.reason ?? null },
+  });
+
+  revalidatePath("/");
+  revalidatePath("/browse");
+  revalidatePath("/admin");
+  revalidatePath("/admin/videos");
+  revalidatePath(`/admin/videos/${parsed.data.videoId}`);
+  revalidatePath(`/v/${existing[0].slug}`);
+  return { ok: true } as const;
+}
+
+// ---------------------------------------------------------------------------
+// Admin: restore a soft-deleted video (SUPER_ADMIN)
+// ---------------------------------------------------------------------------
+const restoreVideoSchema = z.object({
+  videoId: z.string().uuid(),
+});
+
+export async function restoreVideoAction(input: unknown) {
+  const session = await auth();
+  if (!session?.user?.id) return { ok: false, error: "Sign in required" } as const;
+  if (session.user.role !== "SUPER_ADMIN") {
+    return { ok: false, error: "Forbidden — super admin only" } as const;
+  }
+  const parsed = restoreVideoSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: "Invalid input" } as const;
+
+  const result = await restoreVideo(parsed.data.videoId);
+  if (result.length === 0) return { ok: false, error: "Video not found" } as const;
+
+  await writeAudit({
+    actorId: session.user.id,
+    action: "video.restore",
+    entityType: "video",
+    entityId: parsed.data.videoId,
+  });
+
+  revalidatePath("/");
+  revalidatePath("/browse");
+  revalidatePath("/admin");
+  revalidatePath("/admin/videos");
+  revalidatePath(`/admin/videos/${parsed.data.videoId}`);
+  revalidatePath(`/v/${result[0].slug}`);
   return { ok: true } as const;
 }
