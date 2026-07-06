@@ -8,12 +8,14 @@ import {
   listCommentsForVideo,
   incrementVideoViews,
   getUserLikeForVideo,
+  getVideoLabel,
 } from "@/db/queries";
 import { parseVideoUrl } from "@/lib/video";
 import { auth } from "@/auth";
 import { VideoPlayer } from "@/components/video-player";
 import { VideoRow } from "@/components/video-row";
 import { VideoActions } from "@/components/video-actions";
+import { VideoLabelSelector } from "@/components/video-label-selector";
 import { CommentSection } from "@/components/comment-section";
 import { formatDuration, formatNumber, timeAgo } from "@/lib/utils";
 
@@ -46,13 +48,16 @@ export default async function VideoPage({ params }: PageProps) {
   if (!parsed) notFound();
 
   const session = await auth();
-  const [tags, submitter, related, comments, myLike] = await Promise.all([
+  const [tags, submitter, related, comments, myLike, myLabel] = await Promise.all([
     getTagsForVideo(v.id),
     getSubmitterForVideo(v.id),
     listRelatedVideos(v.id, v.level),
     listCommentsForVideo(v.id),
     session?.user?.id
       ? getUserLikeForVideo(v.id, session.user.id)
+      : Promise.resolve(null),
+    session?.user?.id
+      ? getVideoLabel(v.id, session.user.id)
       : Promise.resolve(null),
     incrementVideoViews(v.id),
   ]);
@@ -85,6 +90,12 @@ export default async function VideoPage({ params }: PageProps) {
               dislikeCount={v.dislikeCount}
               isAuthenticated={!!session?.user}
               externalUrl={v.externalUrl}
+            />
+
+            <VideoLabelSelector
+              videoId={v.id}
+              isAuthenticated={!!session?.user}
+              currentLabel={myLabel}
             />
 
             <div className="mt-6 p-4 bg-bg-elev rounded-lg border border-zinc-800">

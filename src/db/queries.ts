@@ -4,6 +4,7 @@ import {
   users,
   tags,
   videoTags,
+  videoLabels,
   comments,
   videoLikes,
   watchlist,
@@ -17,6 +18,7 @@ import {
   videoSeries,
   type Video,
   type User,
+  type VideoUserLabel,
 } from "@/db/schema";
 import { and, desc, eq, sql, inArray, or, ilike, lt } from "drizzle-orm";
 
@@ -720,6 +722,118 @@ export async function listContinueWatching(userId: string, limit = 12) {
       },
     },
   }));
+}
+
+// ---------------------------------------------------------------------------
+// Per-user video labels (TO_WATCH / WATCHED / TO_REWATCH)
+// ---------------------------------------------------------------------------
+export async function getVideoLabel(
+  videoId: string,
+  userId: string,
+): Promise<VideoUserLabel | null> {
+  const rows = await db
+    .select({ label: videoLabels.label })
+    .from(videoLabels)
+    .where(
+      and(
+        eq(videoLabels.videoId, videoId),
+        eq(videoLabels.userId, userId),
+      ),
+    )
+    .limit(1);
+  return rows[0]?.label ?? null;
+}
+
+/**
+ * Return all videoIds labeled by `userId` plus their label, optionally
+ * filtered to one label value (e.g. only `WATCHED`).
+ */
+export async function listLabeledVideos(
+  userId: string,
+  label?: VideoUserLabel,
+  limit = 200,
+) {
+  const whereParts = [eq(videoLabels.userId, userId)];
+  if (label) whereParts.push(eq(videoLabels.label, label));
+
+  const rows = await db
+    .select({
+      label: videoLabels.label,
+      updatedAt: videoLabels.updatedAt,
+      videoId: videos.id,
+      slug: videos.slug,
+      title: videos.title,
+      shortDescription: videos.shortDescription,
+      thumbnailUrl: videos.thumbnailUrl,
+      platform: videos.platform,
+      level: videos.level,
+      order: videos.order,
+      isSponsored: videos.isSponsored,
+      isFeatured: videos.isFeatured,
+      durationSec: videos.durationSec,
+      viewCount: videos.viewCount,
+      likeCount: videos.likeCount,
+      commentCount: videos.commentCount,
+      publishedAt: videos.publishedAt,
+      createdAt: videos.createdAt,
+      submitterId: users.id,
+      submitterUsername: users.username,
+      submitterDisplayName: users.displayName,
+      submitterAvatarUrl: users.avatarUrl,
+    })
+    .from(videoLabels)
+    .innerJoin(videos, eq(videos.id, videoLabels.videoId))
+    .innerJoin(users, eq(users.id, videos.submittedById))
+    .where(and(...whereParts))
+    .orderBy(desc(videoLabels.updatedAt))
+    .limit(limit);
+
+  return rows.map((r) => ({
+    label: r.label,
+    updatedAt: r.updatedAt,
+    video: {
+      id: r.videoId,
+      slug: r.slug,
+      title: r.title,
+      shortDescription: r.shortDescription,
+      thumbnailUrl: r.thumbnailUrl,
+      platform: r.platform,
+      level: r.level,
+      order: r.order,
+      isSponsored: r.isSponsored,
+      isFeatured: r.isFeatured,
+      durationSec: r.durationSec,
+      viewCount: r.viewCount,
+      likeCount: r.likeCount,
+      commentCount: r.commentCount,
+      publishedAt: r.publishedAt,
+      createdAt: r.createdAt,
+      submitter: {
+        id: r.submitterId,
+        username: r.submitterUsername,
+        displayName: r.submitterDisplayName,
+        avatarUrl: r.submitterAvatarUrl,
+      },
+    },
+  }));
+}
+
+export async function countLabelsForUser(userId: string) {
+  const rows = await db
+    .select({
+      label: videoLabels.label,
+      count: sql<number>`count(*)::int`.as("count"),
+    })
+    .from(videoLabels)
+    .where(eq(videoLabels.userId, userId))
+    .groupBy(videoLabels.label);
+  const result: Record<VideoUserLabel, number> = {
+    TO_WATCH: 0,
+    WATCHED: 0,
+    TO_REWATCH: 0,
+  };
+  for (const r of rows) result[r.label] = r.count;
+  return result;
 }
 
 // ---------------------------------------------------------------------------

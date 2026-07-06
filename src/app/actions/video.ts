@@ -7,6 +7,7 @@ import { db } from "@/db";
 import {
   videos,
   videoTags,
+  videoLabels,
   comments,
   videoLikes,
   watchlist,
@@ -24,6 +25,7 @@ import {
   reportSchema,
   submitVideoSchema,
   watchProgressSchema,
+  videoLabelSchema,
 } from "@/lib/validation";
 import { parseVideoUrl, slugFor, thumbnailFor } from "@/lib/video";
 import {
@@ -228,6 +230,51 @@ export async function watchProgressAction(input: unknown) {
     watchedSeconds: parsed.data.watchedSeconds,
     totalDurationSec: parsed.data.totalDurationSec,
   });
+  return { ok: true } as const;
+}
+
+// ---------------------------------------------------------------------------
+// Per-user video labels (TO_WATCH / WATCHED / TO_REWATCH)
+// ---------------------------------------------------------------------------
+export async function setVideoLabelAction(input: unknown) {
+  const session = await auth();
+  if (!session?.user?.id) return { ok: false, error: "Sign in required" } as const;
+  const parsed = videoLabelSchema.safeParse(input);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: parsed.error.issues[0]?.message ?? "Invalid input",
+    } as const;
+  }
+
+  const { videoId, label } = parsed.data;
+
+  if (label === "NONE") {
+    await db
+      .delete(videoLabels)
+      .where(
+        and(
+          eq(videoLabels.userId, session.user.id),
+          eq(videoLabels.videoId, videoId),
+        ),
+      );
+  } else {
+    await db
+      .insert(videoLabels)
+      .values({
+        userId: session.user.id,
+        videoId,
+        label,
+      })
+      .onConflictDoUpdate({
+        target: [videoLabels.userId, videoLabels.videoId],
+        set: { label, updatedAt: new Date() },
+      });
+  }
+
+  revalidatePath(`/v/${videoId}`);
+  revalidatePath(`/watchlist`);
+  return { ok: true } as const;
   return { ok: true } as const;
 }
 

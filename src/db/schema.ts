@@ -50,6 +50,12 @@ export const videoStatusEnum = pgEnum("video_status", [
   "REJECTED",
 ]);
 
+export const videoUserLabelEnum = pgEnum("video_user_label", [
+  "TO_WATCH",
+  "WATCHED",
+  "TO_REWATCH",
+]);
+
 export const commentStatusEnum = pgEnum("comment_status", [
   "VISIBLE",
   "HIDDEN",
@@ -375,6 +381,39 @@ export const watchlist = pgTable(
   }),
 );
 
+/**
+ * Per-user labels for videos. Each user can label a video as:
+ *   - TO_WATCH    : "I want to watch this" (saved for later)
+ *   - WATCHED     : "I have already watched this"
+ *   - TO_REWATCH  : "I want to see this again"
+ *
+ * One label per (user, video). Distinct from `watchlist` (which is a save /
+ * bookmark concept) and `watchHistory` (which tracks progress).
+ */
+export const videoLabels = pgTable(
+  "video_labels",
+  {
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    videoId: uuid("video_id")
+      .notNull()
+      .references(() => videos.id, { onDelete: "cascade" }),
+    label: videoUserLabelEnum("label").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.userId, t.videoId] }),
+    userLabelIdx: index("video_labels_user_label_idx").on(t.userId, t.label),
+    videoIdx: index("video_labels_video_idx").on(t.videoId),
+  }),
+);
+
 export const watchHistory = pgTable(
   "watch_history",
   {
@@ -594,6 +633,9 @@ export type NewComment = typeof comments.$inferInsert;
 export type VideoLike = typeof videoLikes.$inferSelect;
 export type NewVideoLike = typeof videoLikes.$inferInsert;
 export type WatchHistoryRow = typeof watchHistory.$inferSelect;
+export type VideoLabel = typeof videoLabels.$inferSelect;
+export type NewVideoLabel = typeof videoLabels.$inferInsert;
+export type VideoUserLabel = (typeof videoUserLabelEnum.enumValues)[number];
 export type Notification = typeof notifications.$inferSelect;
 export type Report = typeof reports.$inferSelect;
 export type AuditEntry = typeof auditLog.$inferSelect;

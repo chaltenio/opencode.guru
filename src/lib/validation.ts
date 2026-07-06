@@ -104,3 +104,9 @@ export const watchProgressSchema = z.object({
   watchedSeconds: z.number().int().min(0).max(86400),
   totalDurationSec: z.number().int().min(0).max(86400).optional(),
 });
+
+export const videoLabelSchema = z.object({
+  videoId: z.string().uuid(),
+  // "NONE" clears the label; otherwise set the new label.
+  label: z.enum(["TO_WATCH", "WATCHED", "TO_REWATCH", "NONE"]),
+});

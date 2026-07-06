@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { auth, signIn, signOut } from "@/auth";
 import { cn } from "@/lib/utils";
+import { AdminDropdown } from "@/components/admin-dropdown";
 import type { UserRole } from "@/db/schema";
 
 interface TopNavProps {
@@ -36,7 +37,7 @@ export async function TopNav({ user }: TopNavProps) {
           </Link>
           {user && (
             <Link href="/watchlist" className="hover:text-white">
-              My List
+              Library
             </Link>
           )}
         </nav>
@@ -45,12 +46,7 @@ export async function TopNav({ user }: TopNavProps) {
           {user ? (
             <>
               {(user.role === "SUPER_ADMIN" || user.role === "MODERATOR") && (
-                <Link
-                  href="/admin"
-                  className="text-xs uppercase tracking-wide px-3 py-1.5 rounded-md bg-zinc-800 hover:bg-zinc-700"
-                >
-                  Admin
-                </Link>
+                <AdminDropdown role={user.role} />
               )}
               <Link
                 href={`/u/${user.username}`}
