@@ -1,9 +1,10 @@
 /**
- * Email sender — Amazon SES, with a dev-mode fallback.
+ * Email sender — SMTP via nodemailer (works with Amazon SES SMTP, Resend,
+ * Postmark, Mailgun, your own Postfix, etc.) with a dev-mode fallback.
  *
  * Behavior:
- * - Production (env vars set): uses @aws-sdk/client-ses with the configured
- *   region + IAM credentials. From-address comes from EMAIL_FROM.
+ * - Production (SMTP env vars set): opens a nodemailer transport and
+ *   sends the email. From-address comes from EMAIL_FROM.
  * - Dev / unconfigured: logs the message to the server console (no crash).
  *
  * Use:
@@ -18,33 +19,62 @@
  * missing email is usually non-fatal — the user can retry.
  */
 
-import { SESClient, SendEmailCommand, type SendEmailCommandInput } from "@aws-sdk/client-ses";
+import nodemailer, { type Transporter } from "nodemailer";
 import { env } from "@/lib/env";
 
 const APP_NAME = process.env.NEXT_PUBLIC_APP_NAME ?? "opencode.guru";
 
-let _client: SESClient | null = null;
+let _transporter: Transporter | null = null;
 
 /**
- * Lazily build the SES client. Returns null when credentials are missing
- * so the rest of the email pipeline falls back to console logging.
+ * Lazily build the nodemailer SMTP transport.
+ * Returns null when credentials are missing so the rest of the email
+ * pipeline falls back to console logging.
+ *
+ * Provider detection:
+ *  - If EMAIL_SERVER_HOST is set, use that verbatim (works for any SMTP
+ *    provider: SES, Resend, Postmark, Mailgun, self-hosted Postfix, …).
+ *  - Otherwise, if AWS_SES_REGION is set, default to the SES SMTP endpoint
+ *    for that region (email-smtp.<region>.amazonaws.com:587).
+ *  - Otherwise, return null → console fallback.
  */
-function getClient(): SESClient | null {
-  if (_client) return _client;
+function getTransport(): Transporter | null {
+  if (_transporter) return _transporter;
 
-  const region = process.env.AWS_SES_REGION;
-  const accessKeyId = process.env.AWS_SES_ACCESS_KEY_ID;
-  const secretAccessKey = process.env.AWS_SES_SECRET_ACCESS_KEY;
+  const user = process.env.EMAIL_SERVER_USER;
+  const pass = process.env.EMAIL_SERVER_PASSWORD;
 
-  if (!region || !accessKeyId || !secretAccessKey) {
+  if (!user || !pass) {
+    // Try the implicit SES SMTP path if AWS_SES_REGION is configured
+    // AND SMTP creds exist (AWS generates them in the SES console).
+    const region = process.env.AWS_SES_REGION;
+    const sesUser = process.env.AWS_SES_SMTP_USER;
+    const sesPass = process.env.AWS_SES_SMTP_PASSWORD;
+    if (region && sesUser && sesPass) {
+      _transporter = nodemailer.createTransport({
+        host: `email-smtp.${region}.amazonaws.com`,
+        port: 587,
+        secure: false, // STARTTLS
+        requireTLS: true,
+        auth: { user: sesUser, pass: sesPass },
+      });
+      return _transporter;
+    }
     return null;
   }
 
-  _client = new SESClient({
-    region,
-    credentials: { accessKeyId, secretAccessKey },
+  const host = process.env.EMAIL_SERVER_HOST;
+  const port = Number(process.env.EMAIL_SERVER_PORT ?? "587");
+  const secure = process.env.EMAIL_SERVER_SECURE === "true"; // true = 465 SSL
+
+  _transporter = nodemailer.createTransport({
+    host: host ?? "localhost",
+    port,
+    secure,
+    requireTLS: !secure && port === 587,
+    auth: { user, pass },
   });
-  return _client;
+  return _transporter;
 }
 
 function getFromAddress(): string | null {
@@ -58,15 +88,15 @@ export interface SendEmailInput {
   html: string;
   /** Optional Reply-To override. Defaults to EMAIL_FROM. */
   replyTo?: string;
-  /** Set true in dev to bypass SES even if configured. */
+  /** Set true in dev to bypass SMTP even if configured. */
   forceConsole?: boolean;
 }
 
 export interface SendEmailResult {
   ok: boolean;
   messageId?: string;
-  /** "ses" if sent through AWS, "console" if logged only. */
-  channel: "ses" | "console";
+  /** "smtp" if sent through SMTP, "console" if logged only. */
+  channel: "smtp" | "console";
   error?: string;
 }
 
@@ -76,9 +106,9 @@ export interface SendEmailResult {
 export async function sendEmail(input: SendEmailInput): Promise<SendEmailResult> {
   // Dev / unconfigured: log instead of crashing.
   if (input.forceConsole || env.NODE_ENV !== "production") {
-    const client = getClient();
+    const transport = getTransport();
     const from = getFromAddress();
-    if (!client || !from) {
+    if (!transport || !from) {
       console.log(
         `\n[email:console] to=${input.to} subject="${input.subject}"\n` +
           `--- text ---\n${input.text}\n` +
@@ -86,49 +116,43 @@ export async function sendEmail(input: SendEmailInput): Promise<SendEmailResult>
       );
       return { ok: true, channel: "console" };
     }
-    // Fall through to SES if creds + from are present, even in dev.
+    // Fall through to SMTP if creds + from are present, even in dev.
   }
 
-  const client = getClient();
+  const transport = getTransport();
   const from = getFromAddress();
-  if (!client || !from) {
+  if (!transport || !from) {
     console.warn(
-      `[email] AWS_SES_* or EMAIL_FROM not configured — falling back to console.\n` +
+      `[email] SMTP not configured — falling back to console.\n` +
         `  to:      ${input.to}\n` +
-        `  subject: ${input.subject}`,
+        `  subject: ${input.subject}\n` +
+        `  Set EMAIL_SERVER_HOST + EMAIL_SERVER_USER + EMAIL_SERVER_PASSWORD + EMAIL_FROM in env.`,
     );
     console.log(`[email:console]\n${input.text}`);
     return {
       ok: true,
       channel: "console",
-      error: "SES not configured",
+      error: "SMTP not configured",
     };
   }
 
-  const params: SendEmailCommandInput = {
-    Source: from,
-    Destination: { ToAddresses: [input.to] },
-    ReplyToAddresses: input.replyTo ? [input.replyTo] : [from],
-    Message: {
-      Subject: { Data: input.subject, Charset: "UTF-8" },
-      Body: {
-        Text: { Data: input.text, Charset: "UTF-8" },
-        Html: { Data: input.html, Charset: "UTF-8" },
-      },
-    },
-  };
-
   try {
-    const cmd = new SendEmailCommand(params);
-    const out = await client.send(cmd);
+    const info = await transport.sendMail({
+      from,
+      to: input.to,
+      replyTo: input.replyTo,
+      subject: input.subject,
+      text: input.text,
+      html: input.html,
+    });
     console.log(
-      `[email:ses] sent to=${input.to} subject="${input.subject}" messageId=${out.MessageId ?? "?"}`,
+      `[email:smtp] sent to=${input.to} subject="${input.subject}" messageId=${info.messageId}`,
     );
-    return { ok: true, channel: "ses", messageId: out.MessageId };
+    return { ok: true, channel: "smtp", messageId: info.messageId };
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    console.error(`[email:ses] FAILED to=${input.to}: ${msg}`);
-    return { ok: false, channel: "ses", error: msg };
+    console.error(`[email:smtp] FAILED to=${input.to}: ${msg}`);
+    return { ok: false, channel: "smtp", error: msg };
   }
 }
 
@@ -174,7 +198,7 @@ export function confirmationEmail(opts: {
             <tr><td>
               <p style="margin:0 0 16px 0;color:#a1a1aa;font-size:14px;">${APP_NAME}</p>
               <h1 style="margin:0 0 16px 0;font-size:20px;font-weight:700;color:#ffffff;letter-spacing:-0.01em;">${escapeHtml(opts.actionLabel)}</h1>
-              <p style="margin:0 0 20px 0;font-size:15px;line-height:1.55;color:#d4d4d8;">${
+              <p style="margin:0 0 16px 0;font-size:15px;line-height:1.55;color:#d4d4d8;">${
                 opts.toName
                   ? `Hi ${escapeHtml(opts.toName)},`
                   : "Hi,"

@@ -92,100 +92,104 @@ UPDATE users SET role = 'SUPER_ADMIN' WHERE email = 'you@example.com';
 
 Reload the page and you'll see the admin link in the top nav.
 
-## Email — Amazon SES
+## Email — SMTP (Amazon SES, Resend, Postmark, …)
 
-The email-change flow sends its confirmation link via **Amazon SES**.
-Until SES is configured the link is logged to the Vercel function logs
-(prefix `[email:ses]` on success, `[email:console]` when falling back).
+The email-change flow sends its confirmation link over **SMTP** using
+**nodemailer**. Works with any SMTP provider — Amazon SES SMTP, Resend,
+Postmark, Mailgun, or a self-hosted Postfix. Until SMTP is configured the
+link is logged to the Vercel function logs (prefix `[email:smtp]` on
+success, `[email:console]` when falling back).
 
-### 1. SES sandbox prerequisites
+> If you've configured OAuth-style **AWS access keys** in Vercel, you can
+> delete those — this app uses SMTP credentials (different from AWS
+> access keys), not the SES API.
 
-If you're brand-new to SES, the account starts in **sandbox mode**:
-you can only send to verified addresses, and your `EMAIL_FROM` must
-point at a verified single address (not a domain).
+### Option A — Amazon SES SMTP (recommended if you're already on AWS)
 
-1. Sign in to the AWS console → **Amazon SES**.
-2. Pick the region you'll send from (we recommend **us-east-1** or
-   **eu-west-1**; copy this into `AWS_SES_REGION`).
-3. **Verified identities → Create identity** → **Email address**.
-   Enter the address you want to send *from* (e.g. `noreply@yourdomain.com`).
-4. AWS will email that address; click the verification link.
-5. For testing, also verify the **recipient** addresses you'll send to.
+**1. Verify the sender identity**
 
-### 2. (Production) Request production access
+In SES → **Verified identities → Create identity**:
 
-Sandbox mode is fine for development. To send to any address:
+- **Identity type:** Email address (quickest) OR Domain (recommended for prod)
+- For email address: enter `noreply@yourdomain.com` and click the
+  verification link AWS sends you.
+- For domain: enter your domain and add the 3 DKIM CNAMEs + 1 SPF TXT
+  at your registrar.
 
-1. SES home → **Account dashboard** → **Request production access**.
-2. Fill in the use-case form (transactional email is usually approved in
-   24–48 h).
+**2. (Production) Request production access**
 
-### 3. IAM credentials
+SES → **Account dashboard → Request production access**. Until approved
+you can only send to verified recipient addresses.
 
-Create a dedicated IAM user with the **minimum** permission to send
-emails. AWS Console → **IAM** → **Users** → **Create user**:
+**3. Create SMTP credentials**
 
-- Name: `opencode-guru-ses-sender`
-- Permissions policy (paste this JSON, replace `REGION` and `ACCOUNT_ID`):
+In SES → **SMTP settings → Create SMTP credentials**:
 
-  ```json
-  {
-    "Version": "2012-10-17",
-    "Statement": [
-      {
-        "Effect": "Allow",
-        "Action": "ses:SendEmail",
-        "Resource": "arn:aws:ses:REGION:ACCOUNT_ID:identity/*"
-      },
-      {
-        "Effect": "Allow",
-        "Action": "ses:SendRawEmail",
-        "Resource": "*"
-      }
-    ]
-  }
-  ```
+- IAM username: `opencode-guru-smtp-sender`
+- AWS gives you a **SMTP username** (looks like `AKIA...`) and a
+  **SMTP password** (NOT the same as your AWS secret access key — AWS
+  generates a derived one)
+- ⚠️ **Download the .csv** — you can't see the SMTP password again
 
-- Create access key → **Application running outside AWS** → copy the
-  Access key ID and Secret access key.
-
-### 4. Configure Vercel
+**4. Configure Vercel**
 
 Project Settings → Environment Variables:
 
-| Name                          | Value                                          |
-|-------------------------------|------------------------------------------------|
-| `AWS_SES_REGION`              | `us-east-1` (or your region)                   |
-| `AWS_SES_ACCESS_KEY_ID`       | the access key id                              |
-| `AWS_SES_SECRET_ACCESS_KEY`   | the secret access key                          |
-| `EMAIL_FROM`                  | `opencode.guru <noreply@yourdomain.com>`      |
+| Name                     | Value                                          |
+|--------------------------|------------------------------------------------|
+| `AWS_SES_REGION`         | `us-east-1` (or your region)                   |
+| `AWS_SES_SMTP_USER`      | the SMTP username (from step 3)                |
+| `AWS_SES_SMTP_PASSWORD`  | the SMTP password (from step 3)                |
+| `EMAIL_FROM`             | `opencode.guru <noreply@yourdomain.com>`      |
 
 Apply to **Production + Preview + Development**.
 
-### 5. Test it
+The app will automatically detect these and connect to
+`email-smtp.<region>.amazonaws.com:587` over STARTTLS.
 
-1. Trigger a redeploy after adding the four env vars.
+### Option B — Any other SMTP provider (Resend, Postmark, Mailgun, …)
+
+Just provide the SMTP credentials. The app doesn't care which provider
+you use.
+
+| Name                     | Value                                          |
+|--------------------------|------------------------------------------------|
+| `EMAIL_SERVER_HOST`      | e.g. `smtp.resend.com`, `smtp.postmarkapp.com` |
+| `EMAIL_SERVER_PORT`      | `587` (STARTTLS) or `465` (SSL)               |
+| `EMAIL_SERVER_SECURE`    | `false` for 587, `true` for 465                |
+| `EMAIL_SERVER_USER`      | SMTP username                                  |
+| `EMAIL_SERVER_PASSWORD`  | SMTP password                                  |
+| `EMAIL_FROM`             | `Your App <noreply@yourdomain.com>`           |
+
+### Test it
+
+1. Trigger a redeploy after adding the env vars.
 2. Sign in, go to **Settings**, request an email change to an address
    you can read.
-3. Check the **Vercel function logs** (Deployments → ⋯ → Logs) for the
-   line `[email:ses] sent to=… messageId=…`.
+3. Watch **Vercel → Deployments → Logs** for the line:
+   ```
+   [email:smtp] sent to=you@example.com subject="Confirm your new email" messageId=...
+   ```
 4. Open the inbox and click the confirmation link.
 
-If you see `[email:console]` instead, one of the four env vars is
-missing or the IAM user lacks `ses:SendEmail`. See the warning that
-prints at module load:
+If you see `[email:console]` instead, one of the required env vars is
+missing. Look for the module-load warning:
 
 ```
-[opencode.guru] Amazon SES is not fully configured — email-change
+[opencode.guru] SMTP email is not configured — email-change
 confirmations will be logged to the server console instead of sent.
 ```
 
-### 6. Costs
+### Costs
 
-SES pricing is **$0.10 per 1,000 emails** plus data transfer. The free
-tier gives you **3,000 messages/month** when calling from EC2 (or always
-when the destination is on a verified domain in production mode). For a
-small video site this is effectively free.
+| Provider | Free tier | After free |
+|---|---|---|
+| Amazon SES | 3,000/mo from EC2, $0.10/1k otherwise | $0.10/1k |
+| Resend | 100/day, 3,000/mo | $20/mo for 50k |
+| Postmark | 100/mo (test) | $15/mo for 10k |
+| Mailgun | 100/day (sandbox) | $35/mo for 50k |
+
+For a community tutorial site: **effectively free** until you hit thousands of users.
 
 ## Deploying to Vercel
 
