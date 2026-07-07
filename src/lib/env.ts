@@ -25,8 +25,13 @@ export const env = {
   APP_URL: process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000",
   APP_NAME: process.env.NEXT_PUBLIC_APP_NAME ?? "opencode.guru",
   AWS_SES_REGION: process.env.AWS_SES_REGION ?? "",
-  AWS_SES_ACCESS_KEY_ID: process.env.AWS_SES_ACCESS_KEY_ID ?? "",
-  AWS_SES_SECRET_ACCESS_KEY: process.env.AWS_SES_SECRET_ACCESS_KEY ?? "",
+  AWS_SES_SMTP_USER: process.env.AWS_SES_SMTP_USER ?? "",
+  AWS_SES_SMTP_PASSWORD: process.env.AWS_SES_SMTP_PASSWORD ?? "",
+  EMAIL_SERVER_HOST: process.env.EMAIL_SERVER_HOST ?? "",
+  EMAIL_SERVER_PORT: process.env.EMAIL_SERVER_PORT ?? "587",
+  EMAIL_SERVER_SECURE: process.env.EMAIL_SERVER_SECURE ?? "",
+  EMAIL_SERVER_USER: process.env.EMAIL_SERVER_USER ?? "",
+  EMAIL_SERVER_PASSWORD: process.env.EMAIL_SERVER_PASSWORD ?? "",
   EMAIL_FROM: process.env.EMAIL_FROM ?? "",
 } as const;
 
@@ -101,19 +106,30 @@ function warnAppUrl() {
 }
 
 /**
- * Warn (don't throw) when email (Amazon SES) is not configured in
- * production. Email-change confirmations will fall back to console.log.
+ * Warn (don't throw) when SMTP email is not configured in production.
+ * Email-change confirmations will fall back to console.log.
+ *
+ * Two paths are supported:
+ *   - Generic SMTP:   EMAIL_SERVER_HOST, EMAIL_SERVER_PORT,
+ *                     EMAIL_SERVER_USER, EMAIL_SERVER_PASSWORD, EMAIL_FROM
+ *   - SES-specific:   AWS_SES_REGION + AWS_SES_SMTP_USER +
+ *                     AWS_SES_SMTP_PASSWORD + EMAIL_FROM
  */
 function warnEmail() {
   if (!isProduction()) return;
-  const ok =
-    process.env.AWS_SES_REGION &&
-    process.env.AWS_SES_ACCESS_KEY_ID &&
-    process.env.AWS_SES_SECRET_ACCESS_KEY &&
+  const generic =
+    process.env.EMAIL_SERVER_HOST &&
+    process.env.EMAIL_SERVER_USER &&
+    process.env.EMAIL_SERVER_PASSWORD &&
     process.env.EMAIL_FROM;
-  if (!ok) {
+  const ses =
+    process.env.AWS_SES_REGION &&
+    process.env.AWS_SES_SMTP_USER &&
+    process.env.AWS_SES_SMTP_PASSWORD &&
+    process.env.EMAIL_FROM;
+  if (!generic && !ses) {
     console.warn(
-      `[${APP_NAME}] Amazon SES is not fully configured — email-change confirmations will be logged to the server console instead of sent. Set AWS_SES_REGION, AWS_SES_ACCESS_KEY_ID, AWS_SES_SECRET_ACCESS_KEY, and EMAIL_FROM in env.`,
+      `[${APP_NAME}] SMTP email is not configured — email-change confirmations will be logged to the server console instead of sent. Set either EMAIL_SERVER_HOST + EMAIL_SERVER_USER + EMAIL_SERVER_PASSWORD + EMAIL_FROM (any SMTP provider) or AWS_SES_REGION + AWS_SES_SMTP_USER + AWS_SES_SMTP_PASSWORD + EMAIL_FROM (Amazon SES).`,
     );
   }
 }

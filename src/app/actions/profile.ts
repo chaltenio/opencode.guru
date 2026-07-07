@@ -166,9 +166,9 @@ export async function requestEmailChangeAction(input: unknown) {
   revalidatePath("/settings");
   return {
     ok: true,
-    message: sent.channel === "ses"
+    message: sent.channel === "smtp"
       ? `A confirmation link was sent to ${parsed.data.newEmail}. It expires in ${EMAIL_CHANGE_TTL_HOURS} hours.`
-      : `A confirmation link was queued for ${parsed.data.newEmail}. (Email transport is not configured — the link is currently logged to the server console. Configure Amazon SES to deliver it for real.)`,
+      : `A confirmation link was queued for ${parsed.data.newEmail}. (Email transport is not configured — the link is currently logged to the server console. Configure SMTP credentials to deliver it for real.)`,
     channel: sent.channel,
     error: sent.error,
   } as const;
