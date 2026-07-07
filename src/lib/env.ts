@@ -14,6 +14,23 @@ function isProduction() {
 }
 
 /**
+ * Typed `process.env` snapshot for code that needs to read multiple
+ * environment variables without repeatedly accessing `process.env`.
+ *
+ * Mutating this object does NOT affect `process.env`.
+ */
+export const env = {
+  NODE_ENV: process.env.NODE_ENV ?? "development",
+  IS_PRODUCTION: isProduction(),
+  APP_URL: process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000",
+  APP_NAME: process.env.NEXT_PUBLIC_APP_NAME ?? "opencode.guru",
+  AWS_SES_REGION: process.env.AWS_SES_REGION ?? "",
+  AWS_SES_ACCESS_KEY_ID: process.env.AWS_SES_ACCESS_KEY_ID ?? "",
+  AWS_SES_SECRET_ACCESS_KEY: process.env.AWS_SES_SECRET_ACCESS_KEY ?? "",
+  EMAIL_FROM: process.env.EMAIL_FROM ?? "",
+} as const;
+
+/**
  * Returns AUTH_SECRET, or a non-secret dev fallback if unset.
  * Production deployments without AUTH_SECRET will silently get a "Server
  * error" when a user tries to sign in — handled by src/app/error.tsx.
@@ -84,8 +101,27 @@ function warnAppUrl() {
 }
 
 /**
+ * Warn (don't throw) when email (Amazon SES) is not configured in
+ * production. Email-change confirmations will fall back to console.log.
+ */
+function warnEmail() {
+  if (!isProduction()) return;
+  const ok =
+    process.env.AWS_SES_REGION &&
+    process.env.AWS_SES_ACCESS_KEY_ID &&
+    process.env.AWS_SES_SECRET_ACCESS_KEY &&
+    process.env.EMAIL_FROM;
+  if (!ok) {
+    console.warn(
+      `[${APP_NAME}] Amazon SES is not fully configured — email-change confirmations will be logged to the server console instead of sent. Set AWS_SES_REGION, AWS_SES_ACCESS_KEY_ID, AWS_SES_SECRET_ACCESS_KEY, and EMAIL_FROM in env.`,
+    );
+  }
+}
+
+/**
  * Print warnings at module load — never throws, so builds succeed even
  * when env vars are incomplete.
  */
 warnOAuthProviders();
 warnAppUrl();
+warnEmail();

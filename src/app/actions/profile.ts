@@ -8,6 +8,7 @@ import { db } from "@/db";
 import { users, auditLog } from "@/db/schema";
 import { socialProfileSchema, requestEmailChangeSchema } from "@/lib/validation";
 import { writeAudit } from "@/db/queries";
+import { sendEmail, confirmationEmail } from "@/lib/email";
 
 const EMAIL_CHANGE_TTL_HOURS = 24;
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
@@ -143,20 +144,33 @@ export async function requestEmailChangeAction(input: unknown) {
     diff: { to: parsed.data.newEmail },
   });
 
-  // No mail transport wired up yet — log the URL to the server console.
-  // Replace with a real send-mail call (Resend / SES / Postmark) when ready.
+  // Send confirmation via Amazon SES (falls back to console.log in dev).
   const verifyUrl = `${APP_URL}/verify-email?token=${encodeURIComponent(token)}`;
-  console.log(
-    `\n[email-change] user=${session.user.username} → ${parsed.data.newEmail}\n` +
-      `           verifyUrl: ${verifyUrl}\n` +
-      `           expiresAt: ${expires.toISOString()}\n`,
-  );
+  const { subject, text, html } = confirmationEmail({
+    toName: session.user.name ?? null,
+    actionLabel: "Confirm your new email",
+    actionUrl: verifyUrl,
+    expiresInHours: EMAIL_CHANGE_TTL_HOURS,
+    intro:
+      "You (or someone using your account) requested changing the email address on your opencode.guru account to this one. Click the button below to confirm. If you didn't request this, you can safely ignore this email and your account email will not change.",
+    warning:
+      "If you did NOT request this change, please secure your account — someone may have access to your current email.",
+  });
+  const sent = await sendEmail({
+    to: parsed.data.newEmail,
+    subject,
+    text,
+    html,
+  });
 
   revalidatePath("/settings");
   return {
     ok: true,
-    message:
-      "Check the email inbox for the new address. A confirmation link has been sent. (In development, the link is logged to the server console.)",
+    message: sent.channel === "ses"
+      ? `A confirmation link was sent to ${parsed.data.newEmail}. It expires in ${EMAIL_CHANGE_TTL_HOURS} hours.`
+      : `A confirmation link was queued for ${parsed.data.newEmail}. (Email transport is not configured — the link is currently logged to the server console. Configure Amazon SES to deliver it for real.)`,
+    channel: sent.channel,
+    error: sent.error,
   } as const;
 }
 
