@@ -27,6 +27,8 @@ import {
   watchProgressSchema,
   videoLabelSchema,
   deleteVideoSchema,
+  updateVideoLevelSchema,
+  unpublishVideoSchema,
 } from "@/lib/validation";
 import { parseVideoUrl, slugFor, thumbnailFor } from "@/lib/video";
 import {
@@ -775,5 +777,106 @@ export async function restoreVideoAction(input: unknown) {
   revalidatePath("/admin/videos");
   revalidatePath(`/admin/videos/${parsed.data.videoId}`);
   revalidatePath(`/v/${result[0].slug}`);
+  return { ok: true } as const;
+}
+
+// ---------------------------------------------------------------------------
+// Admin: change a video's level
+// ---------------------------------------------------------------------------
+export async function updateVideoLevelAction(input: unknown) {
+  const session = await auth();
+  if (!session?.user?.id) return { ok: false, error: "Sign in required" } as const;
+  if (
+    session.user.role !== "SUPER_ADMIN" &&
+    session.user.role !== "MODERATOR"
+  ) {
+    return { ok: false, error: "Forbidden" } as const;
+  }
+  const parsed = updateVideoLevelSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: "Invalid input" } as const;
+  }
+
+  const existing = await db
+    .select({ level: videos.level, slug: videos.slug })
+    .from(videos)
+    .where(eq(videos.id, parsed.data.videoId))
+    .limit(1);
+  if (!existing[0]) return { ok: false, error: "Video not found" } as const;
+
+  if (existing[0].level === parsed.data.level) {
+    return { ok: true, unchanged: true } as const;
+  }
+
+  await db
+    .update(videos)
+    .set({ level: parsed.data.level, updatedAt: new Date() })
+    .where(eq(videos.id, parsed.data.videoId));
+
+  await writeAudit({
+    actorId: session.user.id,
+    action: "video.level_change",
+    entityType: "video",
+    entityId: parsed.data.videoId,
+    diff: { from: existing[0].level, to: parsed.data.level },
+  });
+
+  revalidatePath("/");
+  revalidatePath("/browse");
+  revalidatePath(`/v/${existing[0].slug}`);
+  revalidatePath("/admin");
+  revalidatePath(`/admin/videos/${parsed.data.videoId}`);
+  return { ok: true } as const;
+}
+
+// ---------------------------------------------------------------------------
+// Admin: unpublish a video (keeps it in DB, hides from public)
+// ---------------------------------------------------------------------------
+export async function unpublishVideoAction(input: unknown) {
+  const session = await auth();
+  if (!session?.user?.id) return { ok: false, error: "Sign in required" } as const;
+  if (
+    session.user.role !== "SUPER_ADMIN" &&
+    session.user.role !== "MODERATOR"
+  ) {
+    return { ok: false, error: "Forbidden" } as const;
+  }
+  const parsed = unpublishVideoSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: "Invalid input" } as const;
+  }
+
+  const existing = await db
+    .select({ id: videos.id, slug: videos.slug, published: videos.published })
+    .from(videos)
+    .where(eq(videos.id, parsed.data.videoId))
+    .limit(1);
+  if (!existing[0]) return { ok: false, error: "Video not found" } as const;
+  if (!existing[0].published) {
+    return { ok: true, unchanged: true } as const;
+  }
+
+  await db
+    .update(videos)
+    .set({
+      published: false,
+      unpublishedAt: new Date(),
+      updatedAt: new Date(),
+    })
+    .where(eq(videos.id, parsed.data.videoId));
+
+  await writeAudit({
+    actorId: session.user.id,
+    action: "video.unpublish",
+    entityType: "video",
+    entityId: parsed.data.videoId,
+    diff: { reason: parsed.data.reason ?? null },
+  });
+
+  revalidatePath("/");
+  revalidatePath("/browse");
+  revalidatePath(`/v/${existing[0].slug}`);
+  revalidatePath("/admin");
+  revalidatePath(`/admin/videos/${parsed.data.videoId}`);
   return { ok: true } as const;
 }

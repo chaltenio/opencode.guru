@@ -52,7 +52,7 @@ export default async function RootLayout({
             <p>
               {APP_NAME} — community-curated opencode tutorials.
             </p>
-            <nav className="flex gap-4">
+            <nav className="flex flex-wrap items-center gap-4">
               <a href="/about" className="hover:text-white">
                 About
               </a>
@@ -61,6 +61,15 @@ export default async function RootLayout({
               </a>
               <a href="/rss.xml" className="hover:text-white">
                 RSS
+              </a>
+              <a
+                href="https://buymeacoffee.com/matedev"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 text-amber-400 hover:text-amber-300 font-medium"
+              >
+                <span aria-hidden>☕</span>
+                Support my project: buymeacoffee.com/matedev
               </a>
             </nav>
           </div>

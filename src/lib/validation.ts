@@ -116,3 +116,71 @@ export const deleteVideoSchema = z.object({
   videoId: z.string().uuid(),
   reason: z.string().trim().max(500).optional(),
 });
+
+/** Admin: change a video's level (also bumps updatedAt). */
+export const updateVideoLevelSchema = z.object({
+  videoId: z.string().uuid(),
+  level: z.enum(["BEGINNER", "INTERMEDIATE", "ADVANCED"]),
+});
+
+/** Admin: unpublish a video (sets published=false, unpublishedAt=now). */
+export const unpublishVideoSchema = z.object({
+  videoId: z.string().uuid(),
+  reason: z.string().trim().max(500).optional(),
+});
+
+/** User: update their own social handles (all optional, max 64/128). */
+export const HANDLE_REGEX = /^[a-zA-Z0-9._-]+$/;
+
+export const socialProfileSchema = z.object({
+  githubUsername: z
+    .string()
+    .trim()
+    .max(64)
+    .regex(HANDLE_REGEX, "Use letters, numbers, dots, dashes, underscores")
+    .optional()
+    .or(z.literal("").transform(() => undefined)),
+  youtubeHandle: z
+    .string()
+    .trim()
+    .max(64)
+    .regex(HANDLE_REGEX, "Use letters, numbers, dots, dashes, underscores")
+    .optional()
+    .or(z.literal("").transform(() => undefined)),
+  twitchUsername: z
+    .string()
+    .trim()
+    .max(64)
+    .regex(HANDLE_REGEX, "Use letters, numbers, dots, dashes, underscores")
+    .optional()
+    .or(z.literal("").transform(() => undefined)),
+  vimeoUsername: z
+    .string()
+    .trim()
+    .max(64)
+    .regex(HANDLE_REGEX, "Use letters, numbers, dots, dashes, underscores")
+    .optional()
+    .or(z.literal("").transform(() => undefined)),
+  xHandle: z
+    .string()
+    .trim()
+    .max(64)
+    .regex(HANDLE_REGEX, "Use letters, numbers, dots, dashes, underscores")
+    .optional()
+    .or(z.literal("").transform(() => undefined)),
+  linkedinSlug: z
+    .string()
+    .trim()
+    .max(128)
+    .regex(HANDLE_REGEX, "Use letters, numbers, dots, dashes, underscores")
+    .optional()
+    .or(z.literal("").transform(() => undefined)),
+  bio: z.string().trim().max(500).optional(),
+  displayName: z.string().trim().max(80).optional(),
+});
+
+/** User: request email change. We send a confirmation link to the NEW email. */
+export const requestEmailChangeSchema = z.object({
+  newEmail: z.string().trim().toLowerCase().email("Must be a valid email"),
+  confirmEmail: z.string().trim().toLowerCase().email("Must be a valid email"),
+});

@@ -136,11 +136,33 @@ export const users = pgTable(
       .notNull()
       .defaultNow(),
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
+
+    // ---- social handles (per user; opt-in) ----
+    githubUsername: varchar("github_username", { length: 64 }),
+    youtubeHandle: varchar("youtube_handle", { length: 64 }),
+    twitchUsername: varchar("twitch_username", { length: 64 }),
+    vimeoUsername: varchar("vimeo_username", { length: 64 }),
+    linkedinSlug: varchar("linkedin_slug", { length: 128 }),
+    xHandle: varchar("x_handle", { length: 64 }),
+
+    // ---- email change (double verification) ----
+    // When the user requests a change, we set pendingEmail + generate a
+    // emailChangeToken + emailChangeExpiresAt. They must click the link
+    // sent to the NEW address before the swap is committed.
+    pendingEmail: text("pending_email"),
+    emailChangeToken: text("email_change_token"),
+    emailChangeExpiresAt: timestamp("email_change_expires_at", {
+      withTimezone: true,
+    }),
   },
   (t) => ({
     emailUq: uniqueIndex("users_email_uq").on(t.email),
+    pendingEmailUq: uniqueIndex("users_pending_email_uq").on(t.pendingEmail),
     usernameUq: uniqueIndex("users_username_uq").on(t.username),
     roleIdx: index("users_role_idx").on(t.role),
+    emailChangeTokenIdx: index("users_email_change_token_idx").on(
+      t.emailChangeToken,
+    ),
   }),
 );
 

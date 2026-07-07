@@ -18,29 +18,6 @@ export default function AboutPage() {
         <code>order</code> field — sponsored videos get top placement (order =
         1).
       </p>
-      <h2 className="text-xl font-semibold text-white mt-8">Roles</h2>
-      <ul className="text-zinc-300 mt-2 space-y-1">
-        <li>
-          <strong className="text-white">Super admin</strong> — full control:
-          approve/reject videos, change ordering, manage users and tags.
-        </li>
-        <li>
-          <strong className="text-white">Moderator</strong> — review queue, tag
-          management, comments, reports. Cannot ban users or change video order.
-        </li>
-        <li>
-          <strong className="text-white">User</strong> — submit videos, comment,
-          like, save to watchlist, track watch history.
-        </li>
-      </ul>
-      <h2 className="text-xl font-semibold text-white mt-8">Stack</h2>
-      <ul className="text-zinc-300 mt-2 space-y-1">
-        <li>Next.js 14 (App Router) + TypeScript</li>
-        <li>PostgreSQL via Drizzle ORM (Vercel Postgres / Neon)</li>
-        <li>Auth.js (NextAuth v5) — GitHub & Google OAuth, JWT sessions</li>
-        <li>Tailwind CSS + lucide-react icons</li>
-        <li>Server Actions + Zod validation</li>
-      </ul>
     </div>
   );
 }

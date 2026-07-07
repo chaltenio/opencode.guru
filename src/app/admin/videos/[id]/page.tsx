@@ -6,6 +6,7 @@ import { and, desc, eq, or } from "drizzle-orm";
 import { ReviewForm } from "@/components/admin/review-form";
 import { AdminFlagsPanel } from "@/components/admin/admin-flags-panel";
 import { AdminDeletePanel } from "@/components/admin/admin-delete-panel";
+import { AdminVideoControls } from "@/components/admin/admin-video-controls";
 import { parseVideoUrl } from "@/lib/video";
 import { timeAgo, formatDateTime } from "@/lib/utils";
 
@@ -69,6 +70,8 @@ export default async function ReviewVideoPage({
           eq(auditLog.action, "video.flags"),
           eq(auditLog.action, "video.soft_delete"),
           eq(auditLog.action, "video.restore"),
+          eq(auditLog.action, "video.level_change"),
+          eq(auditLog.action, "video.unpublish"),
         ),
       ),
     )
@@ -168,6 +171,13 @@ export default async function ReviewVideoPage({
           order={row.order}
         />
       )}
+
+      {/* Mod/Super-admin: level + unpublish */}
+      <AdminVideoControls
+        videoId={row.id}
+        currentLevel={row.level}
+        isPublished={row.published}
+      />
 
       {/* Super-admin-only soft delete / restore */}
       {session.user.role === "SUPER_ADMIN" && (

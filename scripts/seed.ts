@@ -31,12 +31,14 @@ async function main() {
   console.log("[seed] Checking current state…");
 
   const existingVideos = await db.select().from(videos).limit(1);
-  if (existingVideos.length > 0) {
+  const skipSampleContent = existingVideos.length > 0;
+  if (skipSampleContent) {
     console.log(
-      `[seed] DB already has ${existingVideos.length > 0 ? "content" : "data"} — skipping seed.`,
+      "[seed] DB already has content — skipping sample videos / comments. " +
+        "Tags will still be synced (onConflictDoNothing).",
     );
-    console.log("[seed] To force re-seed, manually DELETE FROM videos CASCADE first.");
-    process.exit(0);
+  } else {
+    console.log("[seed] DB is empty — full seeding…");
   }
 
   console.log("[seed] DB is empty — seeding…");
@@ -79,17 +81,31 @@ async function main() {
   }
 
   // 2) Tags
+  // Topics curated for the opencode IDE / AI coding CLI.
   const tagNames = [
+    // Onboarding
     { name: "Getting Started", category: "TOPIC" as const },
-    { name: "LSP", category: "TOOL" as const },
+    { name: "Installation", category: "TOPIC" as const },
+    { name: "Configuration", category: "TOPIC" as const },
+    { name: "CLI Basics", category: "TOPIC" as const },
+    { name: "TUI Walkthrough", category: "TOPIC" as const },
+    // Core opencode concepts
     { name: "MCP Servers", category: "TOOL" as const },
+    { name: "LSP", category: "TOOL" as const },
+    { name: "AI Providers", category: "TOOL" as const },
     { name: "Plugins", category: "TOPIC" as const },
-    { name: "Theming", category: "TOPIC" as const },
-    { name: "TypeScript", category: "LANGUAGE" as const },
-    { name: "Python", category: "LANGUAGE" as const },
-    { name: "Go", category: "LANGUAGE" as const },
+    { name: "Themes", category: "TOPIC" as const },
+    { name: "Workflows", category: "TOPIC" as const },
+    { name: "Shortcuts", category: "TOPIC" as const },
+    { name: "Snippets", category: "TOPIC" as const },
     { name: "Tips & Tricks", category: "TOPIC" as const },
     { name: "Performance", category: "TOPIC" as const },
+    // Languages opencode is commonly used with
+    { name: "TypeScript", category: "LANGUAGE" as const },
+    { name: "JavaScript", category: "LANGUAGE" as const },
+    { name: "Python", category: "LANGUAGE" as const },
+    { name: "Go", category: "LANGUAGE" as const },
+    { name: "Rust", category: "LANGUAGE" as const },
   ];
   const tagRows = await db
     .insert(tags)
@@ -134,7 +150,7 @@ async function main() {
     if (seriesId) console.log(`[seed] ✓ Series: opencode Essentials`);
   }
 
-  // 4) Sample videos
+  // 4) Sample videos (skipped if any video already exists)
   const samples = [
     {
       title: "opencode in 5 minutes — first impressions",
@@ -163,6 +179,61 @@ async function main() {
     {
       title: "MCP servers deep dive",
       shortDescription: "Connect opencode to your editor, browser, and shell via MCP.",
+      description: "",
+      externalUrl: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+      platform: "YOUTUBE" as const,
+      level: "ADVANCED" as const,
+      order: 10,
+      durationSec: 1640,
+      thumbnailUrl: "https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg",
+    },
+  ];
+
+  if (skipSampleContent) {
+    console.log("[seed] ↷ Skipped sample videos / comments (DB already has content).");
+  } else {
+    await insertSampleVideos(adminId, seriesId, allTags);
+  }
+
+  console.log("\n[seed] 🎉 Seed complete.");
+  process.exit(0);
+}
+
+async function insertSampleVideos(
+  adminId: string,
+  seriesId: string | null,
+  allTags: Array<{ id: string }>,
+) {
+  const samples = [
+    {
+      title: "opencode in 5 minutes — first impressions",
+      shortDescription: "A whirlwind tour of the opencode CLI and editor.",
+      description: "We install opencode, configure a model, run a small task.",
+      externalUrl: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+      platform: "YOUTUBE" as const,
+      level: "BEGINNER" as const,
+      order: 1,
+      isFeatured: true,
+      isSponsored: true,
+      durationSec: 312,
+      thumbnailUrl: "https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg",
+    },
+    {
+      title: "Configuring LSP for your favorite language",
+      shortDescription:
+        "Set up LSP servers to get inline completions and diagnostics.",
+      description: "",
+      externalUrl: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+      platform: "YOUTUBE" as const,
+      level: "INTERMEDIATE" as const,
+      order: 2,
+      durationSec: 845,
+      thumbnailUrl: "https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg",
+    },
+    {
+      title: "MCP servers deep dive",
+      shortDescription:
+        "Connect opencode to your editor, browser, and shell via MCP.",
       description: "",
       externalUrl: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
       platform: "YOUTUBE" as const,
@@ -231,9 +302,6 @@ async function main() {
       })
       .onConflictDoNothing();
   }
-
-  console.log("\n[seed] 🎉 Seed complete.");
-  process.exit(0);
 }
 
 main().catch((e) => {
