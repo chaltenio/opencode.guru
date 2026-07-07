@@ -1,9 +1,19 @@
 import type { Metadata } from "next";
+import { Inter } from "next/font/google";
 import "./globals.css";
 import { auth } from "@/auth";
 import { TopNav } from "@/components/top-nav";
 
 const APP_NAME = process.env.NEXT_PUBLIC_APP_NAME ?? "opencode.guru";
+
+// Inter — clean, high-legibility sans designed for screens. Loaded via
+// next/font for self-hosting, automatic font-display: swap, and zero CLS.
+const inter = Inter({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-inter",
+  weight: ["400", "500", "600", "700", "800"],
+});
 
 export const metadata: Metadata = {
   metadataBase: new URL(
@@ -31,8 +41,8 @@ export default async function RootLayout({
 }) {
   const session = await auth();
   return (
-    <html lang="en" className="dark">
-      <body className="min-h-screen bg-bg text-zinc-100">
+    <html lang="en" className={`dark ${inter.variable}`}>
+      <body className="min-h-screen bg-bg text-zinc-100 font-sans antialiased">
         <TopNav
           user={
             session?.user

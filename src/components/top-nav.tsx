@@ -32,9 +32,6 @@ export async function TopNav({ user }: TopNavProps) {
           <Link href="/tags" className="hover:text-white">
             Tags
           </Link>
-          <Link href="/leaderboard" className="hover:text-white">
-            Leaderboard
-          </Link>
           {user && (
             <Link href="/watchlist" className="hover:text-white">
               Library

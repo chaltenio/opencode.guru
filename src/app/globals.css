@@ -4,22 +4,69 @@
 
 :root {
   color-scheme: dark;
+
+  /* Better-than-default font rendering for crisp text on dark surfaces. */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  font-feature-settings: "ss01", "cv11";
+  font-synthesis: none;
 }
 
 html,
 body {
   background: #0a0a0a;
-  color: #f5f5f5;
-  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
-    "Helvetica Neue", Arial, sans-serif;
+  color: #f5f5f6; /* matches --ink */
+  font-family: var(--font-inter), ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  letter-spacing: -0.005em;
 }
 
 ::selection {
-  background: #e50914;
+  background: #ff2d3a;
   color: #fff;
 }
 
+/* Headings: tighter, slightly heavier, more impactful */
+h1, h2, h3, h4 {
+  letter-spacing: -0.02em;
+  font-weight: 700;
+  color: #fff;
+}
+
+/* Better readable body defaults */
+p {
+  line-height: 1.65;
+  color: #d4d4d8; /* zinc-300 */
+}
+
+/* Crisp focus rings (a11y) */
+:focus-visible {
+  outline: 2px solid #ff2d3a;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Mute native scrollbars in the dark UI */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: #0a0a0a;
+}
+::-webkit-scrollbar-thumb {
+  background: #27272a;
+  border-radius: 5px;
+  border: 2px solid #0a0a0a;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #3f3f46;
+}
+
+/* Subtle row scrollers */
 .scroll-row {
   scrollbar-width: none;
   -ms-overflow-style: none;
@@ -28,19 +75,33 @@ body {
   display: none;
 }
 
+/* Card hover lift */
 .video-card-hover {
-  transition: transform 0.18s ease, box-shadow 0.18s ease;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
 }
 .video-card-hover:hover {
   transform: translateY(-2px) scale(1.02);
   z-index: 10;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+  border-color: #3f3f46;
 }
 
+/* Red gradient mask (used on hero) */
 .gradient-mask-r {
-  background: linear-gradient(
-    to right,
-    transparent 0,
-    #0a0a0a 95%
-  );
+  background: linear-gradient(to right, transparent 0, #0a0a0a 95%);
 }
+
+/* Improved contrast for Tailwind's red-300/red-400 on dark surfaces.
+   These are used by error/save banners and labels. */
+.text-red-300 { color: #fca5a5; }
+.text-red-400 { color: #f87171; }
+.bg-red-900\/40 { background-color: rgba(127, 29, 29, 0.5); }
+.border-red-900\/60 { border-color: rgba(127, 29, 29, 0.7); }
+
+/* Improve amber/yellow readability on dark (less brown) */
+.text-amber-300 { color: #fcd34d; }
+.text-amber-400 { color: #fbbf24; }
+
+/* Improve the brand red badge clarity */
+.bg-brand\/15 { background-color: rgba(255, 45, 58, 0.15); }
+.text-brand   { color: #ff5a66; } /* Slightly lighter for body-on-dark */

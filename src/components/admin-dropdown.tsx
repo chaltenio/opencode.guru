@@ -16,6 +16,7 @@ const ADMIN_LINKS = [
   { href: "/admin/reports", label: "Reports" },
   { href: "/admin/users", label: "Users" },
   { href: "/admin/audit", label: "Audit log" },
+  { href: "/leaderboard", label: "Leaderboard", superAdminOnly: true },
 ];
 
 export function AdminDropdown({ role }: AdminDropdownProps) {
@@ -64,7 +65,7 @@ export function AdminDropdown({ role }: AdminDropdownProps) {
           </div>
           {ADMIN_LINKS.map((link) => {
             // Only SUPER_ADMIN can see Audit log (it's currently public-ish)
-            if (link.href === "/admin/audit" && role !== "SUPER_ADMIN") return null;
+            if ("superAdminOnly" in link && link.superAdminOnly && role !== "SUPER_ADMIN") return null;
             return (
               <Link
                 key={link.href}

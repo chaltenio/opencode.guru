@@ -1,10 +1,16 @@
 import { mostActiveUsers } from "@/db/queries";
+import { auth } from "@/auth";
+import { redirect } from "next/navigation";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 300;
 
 export default async function LeaderboardPage() {
+  const session = await auth();
+  if (!session?.user) redirect("/login?callbackUrl=/leaderboard");
+  if (session.user.role !== "SUPER_ADMIN") redirect("/");
+
   const users = await mostActiveUsers(50);
   return (
     <div className="mx-auto max-w-3xl px-6 py-8">
