@@ -11,7 +11,7 @@ import { writeAudit } from "@/db/queries";
 import { sendEmail, confirmationEmail } from "@/lib/email";
 
 const EMAIL_CHANGE_TTL_HOURS = 24;
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://www.opencode.guru";
 
 /**
  * Update the signed-in user's social handles, bio, and display name.

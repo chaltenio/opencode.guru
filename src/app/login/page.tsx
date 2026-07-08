@@ -121,7 +121,11 @@ export default async function LoginPage({
         </div>
 
         <p className="mt-6 text-center text-xs text-zinc-500">
-          By signing in you agree to follow our community guidelines.
+          By signing in you agree to follow our{" "}
+            <a href="/code-of-conduct" className="underline hover:text-white">
+              Code of Conduct
+            </a>
+            .
         </p>
       </div>
     </div>

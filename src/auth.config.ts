@@ -18,12 +18,22 @@ export default {
     GitHub({
       clientId: process.env.AUTH_GITHUB_ID,
       clientSecret: process.env.AUTH_GITHUB_SECRET,
+      // Always show the GitHub account picker — prevents silent
+      // auto-sign-in after sign-out when the user has a GitHub session
+      // cookie from before. `select_account` is OAuth's "show chooser
+      // every time" flag (less aggressive than `consent`).
+      authorization: {
+        params: { prompt: "select_account" },
+      },
     }),
     Google({
       clientId: process.env.AUTH_GOOGLE_ID,
       clientSecret: process.env.AUTH_GOOGLE_SECRET,
       authorization: {
-        params: { prompt: "consent", access_type: "offline" },
+        // Was `consent` — now `select_account` to match GitHub and give
+        // users the choice of which Google account to sign in with
+        // each time, instead of silently reusing the last one.
+        params: { prompt: "select_account", access_type: "offline" },
       },
     }),
   ],
