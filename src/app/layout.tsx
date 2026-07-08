@@ -17,7 +17,7 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   metadataBase: new URL(
-    process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000",
+    process.env.NEXT_PUBLIC_APP_URL ?? "https://www.opencode.guru",
   ),
   title: {
     default: `${APP_NAME} — opencode tutorials, ranked`,
@@ -66,8 +66,8 @@ export default async function RootLayout({
               <a href="/about" className="hover:text-white">
                 About
               </a>
-              <a href="/guidelines" className="hover:text-white">
-                Guidelines
+              <a href="/code-of-conduct" className="hover:text-white">
+                Code of Conduct
               </a>
               <a href="/rss.xml" className="hover:text-white">
                 RSS
@@ -79,7 +79,7 @@ export default async function RootLayout({
                 className="inline-flex items-center gap-1.5 text-amber-400 hover:text-amber-300 font-medium"
               >
                 <span aria-hidden>☕</span>
-                Support my project: buymeacoffee.com/matedev
+                Buy me a coffee
               </a>
             </nav>
           </div>

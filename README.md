@@ -55,9 +55,9 @@ Fill in `.env.local`:
 |---|---|
 | `POSTGRES_URL` | Your Postgres connection string |
 | `AUTH_SECRET` | `openssl rand -base64 32` |
-| `AUTH_GITHUB_ID` / `AUTH_GITHUB_SECRET` | [github.com/settings/developers](https://github.com/settings/developers) — callback: `http://localhost:3000/api/auth/callback/github` |
-| `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET` | [console.cloud.google.com](https://console.cloud.google.com) — callback: `http://localhost:3000/api/auth/callback/google` |
-| `NEXT_PUBLIC_APP_URL` | `http://localhost:3000` in dev |
+| `AUTH_GITHUB_ID` / `AUTH_GITHUB_SECRET` | [github.com/settings/developers](https://github.com/settings/developers) — callback: `https://www.opencode.guru/api/auth/callback/github` |
+| `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET` | [console.cloud.google.com](https://console.cloud.google.com) — callback: `https://www.opencode.guru/api/auth/callback/google` |
+| `NEXT_PUBLIC_APP_URL` | `https://www.opencode.guru` |
 
 ### 4. Run migrations
 
@@ -80,7 +80,7 @@ npm run db:seed
 npm run dev
 ```
 
-Visit `http://localhost:3000`.
+Visit `https://www.opencode.guru`.
 
 ### Promoting the first SUPER_ADMIN
 

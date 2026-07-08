@@ -3,7 +3,7 @@ import { listPublishedVideos } from "@/db/queries";
 export const dynamic = "force-dynamic";
 export const revalidate = 3600;
 
-const BASE = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+const BASE = process.env.NEXT_PUBLIC_APP_URL ?? "https://www.opencode.guru";
 
 export default async function Sitemap() {
   const videos = await listPublishedVideos({ limit: 5000 });

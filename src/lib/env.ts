@@ -22,7 +22,7 @@ function isProduction() {
 export const env = {
   NODE_ENV: process.env.NODE_ENV ?? "development",
   IS_PRODUCTION: isProduction(),
-  APP_URL: process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000",
+  APP_URL: process.env.NEXT_PUBLIC_APP_URL ?? "https://www.opencode.guru",
   APP_NAME: process.env.NEXT_PUBLIC_APP_NAME ?? "opencode.guru",
   AWS_SES_REGION: process.env.AWS_SES_REGION ?? "",
   AWS_SES_SMTP_USER: process.env.AWS_SES_SMTP_USER ?? "",

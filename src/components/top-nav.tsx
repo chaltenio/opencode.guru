@@ -76,7 +76,11 @@ export async function TopNav({ user }: TopNavProps) {
               <form
                 action={async () => {
                   "use server";
-                  await signOut({ redirectTo: "/" });
+                  // Redirect to /login (not /) so the user is always
+                  // shown the provider chooser after sign-out, never
+                  // silently signed back in via the last-used OAuth
+                  // provider's stored cookies.
+                  await signOut({ redirectTo: "/login" });
                 }}
               >
                 <button className="text-xs text-zinc-400 hover:text-white">
